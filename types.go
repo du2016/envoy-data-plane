@@ -7,8 +7,7 @@
 */
 package main
 
-
 type Addr struct {
 	Address string
-	Port uint32
+	Port    uint32
 }

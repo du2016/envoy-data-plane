@@ -13,7 +13,7 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 )
 
-func NewEdsClusterConfig(clusterName string,adsClusterName string) *api.Cluster_EdsClusterConfig {
+func NewEdsClusterConfig(clusterName string, adsClusterName string) *api.Cluster_EdsClusterConfig {
 	return &api.Cluster_EdsClusterConfig{
 		EdsConfig: &v2_core.ConfigSource{
 			ConfigSourceSpecifier: &v2_core.ConfigSource_ApiConfigSource{
@@ -35,11 +35,11 @@ func NewEdsClusterConfig(clusterName string,adsClusterName string) *api.Cluster_
 	}
 }
 
-func NewLoadAssignment(clusterName string,addrs []Addr) *api.ClusterLoadAssignment {
+func NewLoadAssignment(clusterName string, addrs []Addr) *api.ClusterLoadAssignment {
 	lbEndpoints := make([]*endpoint.LbEndpoint, len(addrs))
-	for k,addr:=range addrs{
-		lbEndpoints[k]=&endpoint.LbEndpoint{
-			HostIdentifier:&endpoint.LbEndpoint_Endpoint{
+	for k, addr := range addrs {
+		lbEndpoints[k] = &endpoint.LbEndpoint{
+			HostIdentifier: &endpoint.LbEndpoint_Endpoint{
 				Endpoint: &endpoint.Endpoint{
 					Address: &v2_core.Address{
 						Address: &v2_core.Address_SocketAddress{
@@ -60,7 +60,7 @@ func NewLoadAssignment(clusterName string,addrs []Addr) *api.ClusterLoadAssignme
 		ClusterName: clusterName,
 		Endpoints: []*endpoint.LocalityLbEndpoints{
 			&endpoint.LocalityLbEndpoints{
-				LbEndpoints:lbEndpoints,
+				LbEndpoints: lbEndpoints,
 			},
 		},
 	}

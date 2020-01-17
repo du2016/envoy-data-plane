@@ -15,14 +15,17 @@ import (
 	endpoint "github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
 	listener "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
 	route "github.com/envoyproxy/go-control-plane/envoy/api/v2/route"
+	frl "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/rate_limit/v2"
+	http_router "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/router/v2"
+	http_conn_manager "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
+	rl "github.com/envoyproxy/go-control-plane/envoy/config/ratelimit/v2"
+	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
+	"github.com/golang/protobuf/ptypes"
 	"google.golang.org/grpc"
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	http_router "github.com/envoyproxy/go-control-plane/envoy/config/filter/http/router/v2"
-	http_conn_manager "github.com/envoyproxy/go-control-plane/envoy/config/filter/network/http_connection_manager/v2"
-	discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v2"
 
 	"github.com/envoyproxy/go-control-plane/pkg/cache"
 	"github.com/envoyproxy/go-control-plane/pkg/conversion"
@@ -121,8 +124,25 @@ func main() {
 			Value: true,
 		},
 	}
-	http_filter_router,err:=conversion.MessageToStruct(http_filter_router_)
+	http_filter_router, err := conversion.MessageToStruct(http_filter_router_)
 
+	frlo_ := &frl.RateLimit{
+		Domain:                         "ratelimiter",
+		Stage:                          0,
+		RequestType:                    "external",
+		FailureModeDeny:                false,
+		RateLimitedAsResourceExhausted: false,
+		RateLimitService: &rl.RateLimitServiceConfig{
+			GrpcService: &v2_core.GrpcService{
+				TargetSpecifier: &v2_core.GrpcService_EnvoyGrpc_{
+					EnvoyGrpc: &v2_core.GrpcService_EnvoyGrpc{
+						ClusterName: "local-cluster",
+					},
+				},
+			},
+		},
+	}
+	frlo, err := ptypes.MarshalAny(frlo_)
 	listen_filter_http_conn_ := &http_conn_manager.HttpConnectionManager{
 		StatPrefix: "ingress_http",
 		RouteSpecifier: &http_conn_manager.HttpConnectionManager_Rds{
@@ -151,14 +171,18 @@ func main() {
 		},
 		HttpFilters: []*http_conn_manager.HttpFilter{
 			&http_conn_manager.HttpFilter{
-				Name: "envoy.router",
-				ConfigType: &http_conn_manager.HttpFilter_Config{Config:http_filter_router},
+				Name:       "envoy.router",
+				ConfigType: &http_conn_manager.HttpFilter_Config{Config: http_filter_router},
+			},
+			&http_conn_manager.HttpFilter{
+				Name:       "envoy.rate_limit",
+				ConfigType: &http_conn_manager.HttpFilter_TypedConfig{TypedConfig: frlo},
 			},
 		},
 	}
 
 	listen_filter_http_conn, err := conversion.MessageToStruct(listen_filter_http_conn_)
-	if err!=nil {
+	if err != nil {
 		log.Println(err)
 	}
 
@@ -225,8 +249,8 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
-	input:=""
-	fmt.Scanf("\n",&input)
+	input := ""
+	fmt.Scanf("\n", &input)
 	log.Println("new version")
 	routes = []cache.Resource{&api.RouteConfiguration{
 		Name: "test-route",
@@ -273,7 +297,7 @@ func main() {
 	}()
 	log.Println(123)
 	c := make(chan os.Signal)
-	signal.Notify(c,os.Interrupt)
+	signal.Notify(c, os.Interrupt)
 	select {
 	case <-c:
 		cancel()

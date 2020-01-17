@@ -13,7 +13,7 @@ import (
 	"github.com/golang/protobuf/ptypes/duration"
 )
 
-func NewEdsCluster(clusterName string,eds *api.Cluster_EdsClusterConfig) cache.Resource {
+func NewEdsCluster(clusterName string, eds *api.Cluster_EdsClusterConfig) cache.Resource {
 	return &api.Cluster{
 		Name:           clusterName,
 		AltStatName:    clusterName,
@@ -21,12 +21,12 @@ func NewEdsCluster(clusterName string,eds *api.Cluster_EdsClusterConfig) cache.R
 		ClusterDiscoveryType: &api.Cluster_Type{
 			Type: api.Cluster_EDS,
 		},
-		LbPolicy: api.Cluster_ROUND_ROBIN,
+		LbPolicy:         api.Cluster_ROUND_ROBIN,
 		EdsClusterConfig: eds,
 	}
 }
 
-func NewStaticCluster(name string,endpoints *api.ClusterLoadAssignment) cache.Resource {
+func NewStaticCluster(name string, endpoints *api.ClusterLoadAssignment) cache.Resource {
 	return &api.Cluster{
 		Name:        name,
 		AltStatName: name,
