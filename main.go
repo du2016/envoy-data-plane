@@ -92,6 +92,40 @@ func main() {
 			ServiceName: "local_cluster",
 		},
 	})
+
+	clusters = append(clusters, &api.Cluster{
+		Name:           "rate_limit_cluster",
+		AltStatName:    "rate_limit_cluster",
+		ConnectTimeout: &duration.Duration{Seconds: 1},
+		ClusterDiscoveryType: &api.Cluster_Type{
+			Type: api.Cluster_EDS,
+		},
+		LbPolicy: api.Cluster_ROUND_ROBIN,
+		Http2ProtocolOptions: &v2_core.Http2ProtocolOptions{},
+		EdsClusterConfig: &api.Cluster_EdsClusterConfig{
+			EdsConfig: &v2_core.ConfigSource{
+				ConfigSourceSpecifier: &v2_core.ConfigSource_ApiConfigSource{
+					ApiConfigSource: &v2_core.ApiConfigSource{
+						ApiType: v2_core.ApiConfigSource_GRPC,
+						GrpcServices: []*v2_core.GrpcService{
+							&v2_core.GrpcService{
+								TargetSpecifier: &v2_core.GrpcService_EnvoyGrpc_{
+									EnvoyGrpc: &v2_core.GrpcService_EnvoyGrpc{
+										ClusterName: "ads_cluster",
+									},
+								},
+							},
+						},
+					},
+				}, // 使用EDS
+				//ConfigSourceSpecifier: &v2_core.ConfigSource_Ads{
+				//	Ads: &v2_core.AggregatedConfigSource{}, //使用ADS
+				//},
+			},
+			ServiceName: "rate_limit_cluster",
+		},
+	})
+
 	endpoints = append(endpoints, &api.ClusterLoadAssignment{
 		ClusterName: "local_cluster",
 		Endpoints: []*endpoint.LocalityLbEndpoints{
@@ -119,6 +153,33 @@ func main() {
 		},
 	})
 
+	endpoints = append(endpoints, &api.ClusterLoadAssignment{
+		ClusterName: "rate_limit_cluster",
+		Endpoints: []*endpoint.LocalityLbEndpoints{
+			&endpoint.LocalityLbEndpoints{
+				LbEndpoints: []*endpoint.LbEndpoint{
+					&endpoint.LbEndpoint{
+						HostIdentifier: &endpoint.LbEndpoint_Endpoint{
+							Endpoint: &endpoint.Endpoint{
+								Address: &v2_core.Address{
+									Address: &v2_core.Address_SocketAddress{
+										SocketAddress: &v2_core.SocketAddress{
+											Protocol: v2_core.SocketAddress_TCP,
+											Address:  "127.0.0.1",
+											PortSpecifier: &v2_core.SocketAddress_PortValue{
+												PortValue: 8081,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	})
+
 	http_filter_router_ := &http_router.Router{
 		DynamicStats: &wrappers.BoolValue{
 			Value: true,
@@ -127,7 +188,7 @@ func main() {
 	http_filter_router, err := conversion.MessageToStruct(http_filter_router_)
 
 	frlo_ := &frl.RateLimit{
-		Domain:                         "ratelimiter",
+		Domain:                         "fuckcontour",
 		Stage:                          0,
 		RequestType:                    "external",
 		FailureModeDeny:                false,
@@ -136,7 +197,7 @@ func main() {
 			GrpcService: &v2_core.GrpcService{
 				TargetSpecifier: &v2_core.GrpcService_EnvoyGrpc_{
 					EnvoyGrpc: &v2_core.GrpcService_EnvoyGrpc{
-						ClusterName: "local-cluster",
+						ClusterName: "rate_limit_cluster",
 					},
 				},
 			},
@@ -171,12 +232,12 @@ func main() {
 		},
 		HttpFilters: []*http_conn_manager.HttpFilter{
 			&http_conn_manager.HttpFilter{
-				Name:       "envoy.router",
-				ConfigType: &http_conn_manager.HttpFilter_Config{Config: http_filter_router},
-			},
-			&http_conn_manager.HttpFilter{
 				Name:       "envoy.rate_limit",
 				ConfigType: &http_conn_manager.HttpFilter_TypedConfig{TypedConfig: frlo},
+			},
+			&http_conn_manager.HttpFilter{
+				Name:       "envoy.router",
+				ConfigType: &http_conn_manager.HttpFilter_Config{Config: http_filter_router},
 			},
 		},
 	}
@@ -216,6 +277,22 @@ func main() {
 						},
 					},
 				},
+				//---
+				RateLimits: []*route.RateLimit{
+					&route.RateLimit{
+						Stage: &wrappers.UInt32Value{Value: 0},
+						Actions: []*route.RateLimit_Action{
+							&route.RateLimit_Action{
+								ActionSpecifier: &route.RateLimit_Action_GenericKey_{
+									GenericKey: &route.RateLimit_Action_GenericKey{
+										DescriptorValue: "apis",
+									},
+								},
+							},
+						},
+					},
+				},
+				//---
 			},
 		},
 	})
@@ -259,6 +336,20 @@ func main() {
 				Name: "local",
 				Domains: []string{
 					"*",
+				},
+				RateLimits: []*route.RateLimit{
+					&route.RateLimit{
+						Stage: &wrappers.UInt32Value{Value: 0},
+						Actions: []*route.RateLimit_Action{
+							&route.RateLimit_Action{
+								ActionSpecifier: &route.RateLimit_Action_GenericKey_{
+									GenericKey: &route.RateLimit_Action_GenericKey{
+										DescriptorValue: "apis",
+									},
+								},
+							},
+						},
+					},
 				},
 				Routes: []*route.Route{
 					&route.Route{
